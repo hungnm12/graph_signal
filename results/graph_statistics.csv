@@ -1,0 +1,2 @@
+nodes,edges,density,average_degree,average_weighted_degree,largest_component_nodes,connected_components,largest_adjacency_eigenvalue,laplacian_trace,total_weight,source_is_synthetic
+242.0,8317.0,0.28520969788416034,68.73553719008264,31.98054208629986,242.0,1.0,37.27435469779735,7739.291184884565,3869.6455924422826,0.0
