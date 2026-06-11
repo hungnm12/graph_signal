@@ -188,3 +188,61 @@ def plot_smoothness(smoothness: pd.DataFrame, output: Path) -> None:
     ax.grid(alpha=0.25)
     _save(fig, output)
 
+
+def plot_model_fit_curves(
+    truth_counts: pd.DataFrame,
+    sir_counts: pd.DataFrame,
+    seir_counts: pd.DataFrame,
+    output: Path,
+) -> None:
+    x_column = "time_step" if "time_step" in truth_counts.columns else "time"
+    fig, ax = plt.subplots(figsize=(10, 5.6))
+    ax.plot(
+        truth_counts[x_column],
+        truth_counts["infected"],
+        label="Pseudo-ground-truth SEIR",
+        color="#222222",
+        lw=2.6,
+    )
+    ax.plot(
+        sir_counts[x_column] if x_column in sir_counts.columns else sir_counts["time"],
+        sir_counts["infected"],
+        label="Best-fit SIR",
+        color="#c43c39",
+        lw=2.3,
+    )
+    ax.plot(
+        seir_counts[x_column] if x_column in seir_counts.columns else seir_counts["time"],
+        seir_counts["infected"],
+        label="Best-fit SEIR",
+        color="#2b7a4b",
+        lw=2.3,
+    )
+    ax.set_xlabel("Time step")
+    ax.set_ylabel("Mean infected nodes")
+    ax.set_title("Model fit on infected curve")
+    ax.grid(alpha=0.25)
+    ax.legend(frameon=False)
+    _save(fig, output)
+
+
+def plot_model_metric_bars(metrics: pd.DataFrame, output: Path) -> None:
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4.6))
+    models = metrics["model"].tolist()
+
+    axes[0].bar(models, metrics["mse_infected"], color=["#c43c39", "#2b7a4b"])
+    axes[0].set_title("Infected-curve MSE")
+    axes[0].grid(axis="y", alpha=0.25)
+
+    axes[1].bar(models, metrics["mae_infected"], color=["#c43c39", "#2b7a4b"])
+    axes[1].set_title("Infected-curve MAE")
+    axes[1].grid(axis="y", alpha=0.25)
+
+    axes[2].bar(models, metrics["curve_accuracy"], color=["#c43c39", "#2b7a4b"])
+    axes[2].set_title("Curve Accuracy (1 - MAPE)")
+    axes[2].set_ylim(0, 1.0)
+    axes[2].grid(axis="y", alpha=0.25)
+
+    for ax in axes:
+        ax.set_xlabel("Model")
+    _save(fig, output)
