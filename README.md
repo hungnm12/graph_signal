@@ -7,6 +7,7 @@ This folder implements the proposed GSP final project from
 
 - Aggregates a school face-to-face contact dataset into a weighted contact graph.
 - Runs Monte Carlo SIR simulation on the weighted graph.
+- Adds a SEIR-vs-SIR comparison workflow for report figures and model-fitting metrics.
 - Sweeps infection rate values.
 - Compares intervention strategies:
   - random vaccination
@@ -41,6 +42,10 @@ If the download fails, the code creates a synthetic school contact network so
 the project remains runnable offline. The summary file records whether the
 synthetic fallback was used.
 
+For the SEIR comparison workflow, the repository also supports running against
+the public sample data from the original `SEIR-Campus` GitHub project after the
+repo is cloned locally.
+
 ## How to run
 
 From this folder:
@@ -61,6 +66,21 @@ Useful parameters:
 ```powershell
 py -3 main.py --beta 0.005 --mu 0.16 --steps 80 --runs 120
 ```
+
+To generate the SEIR-vs-SIR comparison graphs in `seir_sir_comparison/`:
+
+```powershell
+py -3 seir_sir_comparison/generate_comparison_plot.py
+```
+
+To run the dataset-driven `SEIR-Campus` vs `Weighted SIR` evaluation:
+
+```powershell
+py -3 run_repo_model_comparison.py --max-students 250 --truth-runs 6 --fit-runs 3 --final-runs 6
+```
+
+This script expects the original `SEIR-Campus` repository at
+`external/SEIR-Campus`.
 
 ## Outputs
 
@@ -85,6 +105,14 @@ Figures in `results/`:
 - `diffusion_risk_score.png`
 - `risk_prediction_scatter.png`
 - `smoothness_curve.png`
+
+Additional comparison outputs in `seir_sir_comparison/repo_evaluation/`:
+
+- `model_comparison_metrics.csv`
+- `grid_search_results.csv`
+- `model_fit_curves.png`
+- `model_metric_bars.png`
+- `report_note.md`
 
 ## Suggested slide or report structure
 
