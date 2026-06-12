@@ -167,6 +167,7 @@ def main() -> None:
         sir_counts,
         seir_counts,
         args.output_dir / "model_fit_curves.png",
+        truth_label=f"Pseudo-ground-truth {comparison['truth_model']}",
     )
     plot_model_metric_bars(metrics, args.output_dir / "model_metric_bars.png")
 

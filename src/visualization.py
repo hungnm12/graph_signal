@@ -418,13 +418,14 @@ def plot_model_fit_curves(
     sir_counts: pd.DataFrame,
     seir_counts: pd.DataFrame,
     output: Path,
+    truth_label: str = "Pseudo-ground-truth",
 ) -> None:
     x_column = "time_step" if "time_step" in truth_counts.columns else "time"
     fig, ax = plt.subplots(figsize=(10, 5.6))
     ax.plot(
         truth_counts[x_column],
         truth_counts["infected"],
-        label="Pseudo-ground-truth SEIR",
+        label=truth_label,
         color="#222222",
         lw=2.6,
     )
@@ -451,21 +452,27 @@ def plot_model_fit_curves(
 
 
 def plot_model_metric_bars(metrics: pd.DataFrame, output: Path) -> None:
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4.6))
+    fig, axes = plt.subplots(1, 4, figsize=(15.5, 4.8))
     models = metrics["model"].tolist()
+    colors = ["#c43c39", "#2b7a4b"]
 
-    axes[0].bar(models, metrics["mse_infected"], color=["#c43c39", "#2b7a4b"])
-    axes[0].set_title("Infected-curve MSE")
+    axes[0].bar(models, metrics["mse_infected"], color=colors)
+    axes[0].set_title("Infected-curve MSE\nlower is better")
     axes[0].grid(axis="y", alpha=0.25)
 
-    axes[1].bar(models, metrics["mae_infected"], color=["#c43c39", "#2b7a4b"])
-    axes[1].set_title("Infected-curve MAE")
+    axes[1].bar(models, metrics["mae_infected"], color=colors)
+    axes[1].set_title("Infected-curve MAE\nlower is better")
     axes[1].grid(axis="y", alpha=0.25)
 
-    axes[2].bar(models, metrics["curve_accuracy"], color=["#c43c39", "#2b7a4b"])
-    axes[2].set_title("Curve Accuracy (1 - MAPE)")
+    axes[2].bar(models, metrics["curve_accuracy"], color=colors)
+    axes[2].set_title("Curve Accuracy (1 - MAPE)\nhigher is better")
     axes[2].set_ylim(0, 1.0)
     axes[2].grid(axis="y", alpha=0.25)
+
+    bic_values = metrics["bic_infected"] if "bic_infected" in metrics.columns else metrics["mse_infected"]
+    axes[3].bar(models, bic_values, color=colors)
+    axes[3].set_title("BIC\nlower is better")
+    axes[3].grid(axis="y", alpha=0.25)
 
     for ax in axes:
         ax.set_xlabel("Model")
