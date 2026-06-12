@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "scripts": {
+    "build:page": "python3 build_cloudflare_page.py",
+    "deploy:cloudflare": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.100.0"
+  }
+}

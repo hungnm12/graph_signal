@@ -237,7 +237,11 @@ def main() -> None:
             initial_exposure=initial_infected,
             seed=args.seed + 100 + index,
         )
-        metrics = evaluate_curve_fit(truth_counts, counts)
+        metrics = evaluate_curve_fit(
+            truth_counts,
+            counts,
+            parameter_count=1,
+        )
         search_rows.append({"model": "SEIR-Campus", "rate": rate, **metrics})
         if best_repo_loss is None or metrics["mse_infected"] < best_repo_loss:
             best_repo_loss = metrics["mse_infected"]
@@ -260,7 +264,11 @@ def main() -> None:
                 initial_infected=initial_infected,
                 seed=args.seed + int(beta * 10000) + int(mu * 1000),
             )["mean_counts"].rename(columns={"time": "time_step"})
-            metrics = evaluate_curve_fit(truth_counts, counts)
+            metrics = evaluate_curve_fit(
+                truth_counts,
+                counts,
+                parameter_count=2,
+            )
             search_rows.append({"model": "Weighted SIR", "beta": beta, "mu": mu, **metrics})
             if best_sir_loss is None or metrics["mse_infected"] < best_sir_loss:
                 best_sir_loss = metrics["mse_infected"]
@@ -275,7 +283,11 @@ def main() -> None:
         initial_exposure=initial_infected,
         seed=args.seed + 5000,
     )
-    final_repo_metrics = evaluate_curve_fit(truth_counts, final_repo_counts)
+    final_repo_metrics = evaluate_curve_fit(
+        truth_counts,
+        final_repo_counts,
+        parameter_count=1,
+    )
 
     final_sir_counts = monte_carlo_sir(
         graph=graph,
@@ -286,7 +298,11 @@ def main() -> None:
         initial_infected=initial_infected,
         seed=args.seed + 6000,
     )["mean_counts"].rename(columns={"time": "time_step"})
-    final_sir_metrics = evaluate_curve_fit(truth_counts, final_sir_counts)
+    final_sir_metrics = evaluate_curve_fit(
+        truth_counts,
+        final_sir_counts,
+        parameter_count=2,
+    )
 
     metrics_df = pd.DataFrame(
         [

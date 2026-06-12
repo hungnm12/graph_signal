@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 from .load_graph import ordered_nodes
 
@@ -18,6 +19,12 @@ def _save(fig: plt.Figure, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
+
+
+def _save_animation(animation: FuncAnimation, output: Path, fps: int = 8) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    animation.save(output, writer=PillowWriter(fps=fps), dpi=120)
+    plt.close(animation._fig)
 
 
 def plot_graph(graph: nx.Graph, output: Path, seed: int = 7) -> None:
@@ -187,6 +194,223 @@ def plot_smoothness(smoothness: pd.DataFrame, output: Path) -> None:
     ax.set_title("Graph signal smoothness of infection probability")
     ax.grid(alpha=0.25)
     _save(fig, output)
+
+
+def plot_risk_scatter_3d(
+    risk_scores: pd.DataFrame,
+    output: Path,
+    annotate_top_k: int = 8,
+    azim: float = -61,
+) -> None:
+    ranked = risk_scores.sort_values("diffusion_risk", ascending=False).reset_index(drop=True)
+    x = ranked.index.to_numpy()
+    y = ranked["diffusion_risk"].to_numpy()
+    z = ranked["infection_frequency"].to_numpy()
+    colors = ranked["seed_infected"].to_numpy()
+
+    fig = plt.figure(figsize=(10.5, 7.5))
+    ax = fig.add_subplot(111, projection="3d")
+    scatter = ax.scatter(
+        x,
+        y,
+        z,
+        c=colors,
+        cmap="coolwarm",
+        s=48,
+        alpha=0.92,
+        depthshade=True,
+        edgecolors="#101014",
+        linewidths=0.45,
+    )
+    for idx, row in ranked.head(annotate_top_k).iterrows():
+        ax.text(
+            idx,
+            float(row["diffusion_risk"]) + 0.01,
+            float(row["infection_frequency"]) + 0.012,
+            str(int(row["node"])),
+            fontsize=8,
+            color="#121212",
+        )
+
+    ax.set_title("3D Risk Landscape from Graph Signal Results", pad=18, fontsize=15)
+    ax.set_xlabel("Node rank by diffusion risk", labelpad=12)
+    ax.set_ylabel("Diffusion risk score", labelpad=12)
+    ax.set_zlabel("Infection frequency", labelpad=10)
+    ax.view_init(elev=26, azim=azim)
+    ax.xaxis.pane.set_facecolor((0.95, 0.97, 1.0, 0.88))
+    ax.yaxis.pane.set_facecolor((0.98, 0.95, 0.93, 0.84))
+    ax.zaxis.pane.set_facecolor((0.95, 0.98, 0.95, 0.84))
+    ax.grid(True, alpha=0.2)
+
+    colorbar = fig.colorbar(scatter, ax=ax, shrink=0.72, pad=0.08)
+    colorbar.set_label("Initial infected seed", rotation=270, labelpad=18)
+    _save(fig, output)
+
+
+def animate_risk_scatter_3d_rotation(
+    risk_scores: pd.DataFrame,
+    output: Path,
+    frames: int = 48,
+    fps: int = 12,
+) -> None:
+    ranked = risk_scores.sort_values("diffusion_risk", ascending=False).reset_index(drop=True)
+    x = ranked.index.to_numpy()
+    y = ranked["diffusion_risk"].to_numpy()
+    z = ranked["infection_frequency"].to_numpy()
+    colors = ranked["seed_infected"].to_numpy()
+
+    fig = plt.figure(figsize=(10.5, 7.5))
+    ax = fig.add_subplot(111, projection="3d")
+    scatter = ax.scatter(
+        x,
+        y,
+        z,
+        c=colors,
+        cmap="coolwarm",
+        s=44,
+        alpha=0.92,
+        depthshade=True,
+        edgecolors="#101014",
+        linewidths=0.4,
+    )
+    for idx, row in ranked.head(8).iterrows():
+        ax.text(
+            idx,
+            float(row["diffusion_risk"]) + 0.01,
+            float(row["infection_frequency"]) + 0.012,
+            str(int(row["node"])),
+            fontsize=8,
+            color="#121212",
+        )
+
+    ax.set_title("3D Risk Landscape from Graph Signal Results", pad=18, fontsize=15)
+    ax.set_xlabel("Node rank by diffusion risk", labelpad=12)
+    ax.set_ylabel("Diffusion risk score", labelpad=12)
+    ax.set_zlabel("Infection frequency", labelpad=10)
+    ax.xaxis.pane.set_facecolor((0.95, 0.97, 1.0, 0.88))
+    ax.yaxis.pane.set_facecolor((0.98, 0.95, 0.93, 0.84))
+    ax.zaxis.pane.set_facecolor((0.95, 0.98, 0.95, 0.84))
+    ax.grid(True, alpha=0.2)
+    colorbar = fig.colorbar(scatter, ax=ax, shrink=0.72, pad=0.08)
+    colorbar.set_label("Initial infected seed", rotation=270, labelpad=18)
+
+    def update(frame_index: int) -> list[object]:
+        azim = -61 + (360.0 * frame_index / frames)
+        ax.view_init(elev=26, azim=azim)
+        return [scatter]
+
+    animation = FuncAnimation(fig, update, frames=frames, interval=1000 / fps, blit=False)
+    _save_animation(animation, output, fps=fps)
+
+
+def animate_contact_network_3d_growth(
+    contacts: pd.DataFrame,
+    metadata: pd.DataFrame,
+    final_graph: nx.Graph,
+    output: Path,
+    frames: int = 24,
+    fps: int = 8,
+    seed: int = 7,
+) -> None:
+    nodes = ordered_nodes(final_graph)
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+    pos_2d = nx.spring_layout(final_graph, weight="weight", seed=seed, iterations=80)
+    x_coords = np.array([pos_2d[node][0] for node in nodes], dtype=float)
+    y_coords = np.array([pos_2d[node][1] for node in nodes], dtype=float)
+
+    class_labels = metadata.set_index("node").reindex(nodes)["class_label"].fillna("unknown")
+    unique_classes = sorted(class_labels.astype(str).unique())
+    class_to_idx = {label: idx for idx, label in enumerate(unique_classes)}
+    node_colors = np.array([class_to_idx[str(label)] for label in class_labels], dtype=float)
+
+    final_weighted_degree = dict(final_graph.degree(weight="weight"))
+    final_max_degree = max(final_weighted_degree.values(), default=1.0) or 1.0
+
+    cumulative_contacts = contacts.sort_values("time").copy()
+    time_points = np.quantile(
+        cumulative_contacts["time"].to_numpy(dtype=float),
+        np.linspace(0.04, 1.0, frames),
+    )
+
+    fig = plt.figure(figsize=(10, 7.6))
+    ax = fig.add_subplot(111, projection="3d")
+
+    def update(frame_index: int) -> list[object]:
+        ax.cla()
+        cutoff = float(time_points[frame_index])
+        snapshot = cumulative_contacts.loc[cumulative_contacts["time"] <= cutoff]
+        edge_table = (
+            snapshot.groupby(["u", "v"], as_index=False)
+            .agg(contact_count=("time", "size"), duration_seconds=("contact_duration_seconds", "sum"))
+        )
+        if edge_table.empty:
+            edge_table = pd.DataFrame(columns=["u", "v", "contact_count", "duration_seconds"])
+
+        snapshot_graph = nx.Graph()
+        snapshot_graph.add_nodes_from(nodes)
+        for row in edge_table.itertuples(index=False):
+            duration = float(row.duration_seconds)
+            snapshot_graph.add_edge(
+                row.u,
+                row.v,
+                weight=duration,
+                contact_count=int(row.contact_count),
+            )
+
+        weighted_degree = dict(snapshot_graph.degree(weight="weight"))
+        z_coords = np.array(
+            [weighted_degree.get(node, 0.0) / final_max_degree for node in nodes],
+            dtype=float,
+        )
+
+        edge_rows = edge_table.sort_values("duration_seconds", ascending=False).head(180)
+        if not edge_rows.empty:
+            max_duration = max(float(edge_rows["duration_seconds"].max()), 1.0)
+            for row in edge_rows.itertuples(index=False):
+                idx_u = node_to_idx[row.u]
+                idx_v = node_to_idx[row.v]
+                ax.plot(
+                    [x_coords[idx_u], x_coords[idx_v]],
+                    [y_coords[idx_u], y_coords[idx_v]],
+                    [0.0, 0.0],
+                    color=(0.18, 0.2, 0.24, 0.12),
+                    linewidth=0.2 + 1.0 * float(row.duration_seconds) / max_duration,
+                )
+
+        ax.scatter(
+            x_coords,
+            y_coords,
+            z_coords,
+            c=node_colors,
+            cmap="tab20",
+            s=26 + 110 * z_coords,
+            alpha=0.95,
+            edgecolors="#171717",
+            linewidths=0.25,
+            depthshade=True,
+        )
+
+        progress = (frame_index + 1) / frames
+        ax.set_title(
+            f"3D Growth of the Aggregated School Contact Network ({progress:.0%} of timeline)",
+            pad=18,
+            fontsize=14,
+        )
+        ax.set_xlabel("Spring-layout X", labelpad=10)
+        ax.set_ylabel("Spring-layout Y", labelpad=12)
+        ax.set_zlabel("Normalized cumulative contact intensity", labelpad=10)
+        ax.set_xlim(x_coords.min() * 1.12, x_coords.max() * 1.12)
+        ax.set_ylim(y_coords.min() * 1.12, y_coords.max() * 1.12)
+        ax.set_zlim(0.0, 1.05)
+        ax.view_init(elev=28, azim=-50 + frame_index * 1.25)
+        ax.xaxis.pane.set_facecolor((0.95, 0.97, 1.0, 0.82))
+        ax.yaxis.pane.set_facecolor((0.98, 0.95, 0.93, 0.82))
+        ax.zaxis.pane.set_facecolor((0.95, 0.98, 0.95, 0.82))
+        ax.grid(True, alpha=0.18)
+        return []
+
+    animation = FuncAnimation(fig, update, frames=frames, interval=1000 / fps, blit=False)
+    _save_animation(animation, output, fps=fps)
 
 
 def plot_model_fit_curves(

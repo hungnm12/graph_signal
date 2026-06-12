@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Graph Signal Result Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Cloudflare Worker Page</p>
+          <h1>3D epidemic risk graph built directly from simulation results.</h1>
+          <p class="lede">
+            This page packages the school contact-network outputs into a publishable result viewer.
+            The hero visualization is a real 3D scatter generated from <code>results/risk_scores.csv</code>.
+          </p>
+          <div class="metric-grid" id="metric-grid"></div>
+        </div>
+        <div class="hero-visual">
+          <img src="./assets/risk_scores_3d.png" alt="3D risk landscape graph" />
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="eyebrow">Animated 3D Views</p>
+          <h2>Motion studies for the school contact network</h2>
+        </div>
+        <div class="gallery">
+          <figure>
+            <img src="./assets/contact_network_growth_3d.gif" alt="3D animated school contact network growth" />
+            <figcaption>Aggregated graph growth over the temporal contact stream</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/risk_scores_3d_rotate.gif" alt="360 degree rotating 3D graph signal results" />
+            <figcaption>360-degree rotation of the Graph Signal 3D risk landscape</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="eyebrow">Result Gallery</p>
+          <h2>Supporting views from the pipeline</h2>
+        </div>
+        <div class="gallery">
+          <figure>
+            <img src="./assets/graph_visualization.png" alt="Graph visualization" />
+            <figcaption>Aggregated school contact graph</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/intervention_comparison.png" alt="Intervention comparison" />
+            <figcaption>Intervention comparison</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/infection_rate_sweep.png" alt="Infection rate sweep" />
+            <figcaption>Beta sweep impact</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/risk_prediction_scatter.png" alt="Risk prediction scatter" />
+            <figcaption>Risk score vs infection frequency</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/smoothness_curve.png" alt="Smoothness curve" />
+            <figcaption>Graph-signal smoothness over time</figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+    <script>
+      window.RESULT_SUMMARY = {"headline": {"source": "SocioPatterns primary school temporal network", "nodes": 242, "edges": 8317, "spectral_radius": 37.27}, "baseline": {"final_infected_ratio": 16.0, "peak_infected_count": 10.08, "time_to_peak": 14.18}, "risk_quality": {"pearson": 0.726, "spearman": 0.716, "precision_at_k": 0.3}, "best_intervention": {"scenario": "Mask edge reduction", "final_infected_ratio": 3.12, "peak_infected_count": 4.08}, "beta_extreme": {"beta": 0.0075, "final_infected_ratio": 48.15, "time_to_peak": 23.8}};
+    </script>
+    <script src="./app.js"></script>
+  </body>
+</html>

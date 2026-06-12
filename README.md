@@ -1,7 +1,5 @@
 # Predicting and Controlling Epidemic Spreading on School Contact Networks
 
-This folder implements the proposed GSP final project from
-`GSP_Final_Project_Huong_Dan_De_Tai.md`.
 
 ## What is included
 
@@ -113,6 +111,34 @@ Additional comparison outputs in `seir_sir_comparison/repo_evaluation/`:
 - `model_fit_curves.png`
 - `model_metric_bars.png`
 - `report_note.md`
+
+## Cloudflare Worker page
+
+This repository now includes a static result page that is generated from the
+files in `results/` and served by a minimal Cloudflare Worker.
+
+Build the page locally:
+
+```bash
+python3 build_cloudflare_page.py
+```
+
+This writes the deployable site to `site/`, including:
+
+- `site/assets/risk_scores_3d.png`: a 3D scatter built from `results/risk_scores.csv`
+- existing pipeline figures copied into `site/assets/`
+- `site/index.html`, `site/styles.css`, and `site/app.js`
+
+To deploy with Wrangler:
+
+```bash
+export CLOUDFLARE_API_TOKEN=...
+npm install
+npm run deploy:cloudflare
+```
+
+The Worker configuration lives in `wrangler.toml`, and static assets are served
+through `cloudflare/worker.js`.
 
 ## Suggested slide or report structure
 

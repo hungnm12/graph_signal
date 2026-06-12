@@ -23,7 +23,36 @@ class FitResult:
     metrics: dict[str, float]
 
 
-def _curve_metrics(truth: pd.Series, prediction: pd.Series) -> dict[str, float]:
+def _information_criteria(
+    truth_values: np.ndarray,
+    pred_values: np.ndarray,
+    parameter_count: int,
+) -> dict[str, float]:
+    n = int(len(truth_values))
+    if n == 0:
+        return {
+            "rss_infected": 0.0,
+            "aic_infected": float("nan"),
+            "bic_infected": float("nan"),
+        }
+
+    residual = pred_values - truth_values
+    rss = float(np.sum(residual ** 2))
+    mse_floor = max(rss / n, 1e-12)
+    aic = float(n * np.log(mse_floor) + 2 * parameter_count)
+    bic = float(n * np.log(mse_floor) + parameter_count * np.log(n))
+    return {
+        "rss_infected": rss,
+        "aic_infected": aic,
+        "bic_infected": bic,
+    }
+
+
+def _curve_metrics(
+    truth: pd.Series,
+    prediction: pd.Series,
+    parameter_count: int,
+) -> dict[str, float]:
     truth_values = truth.to_numpy(dtype=float)
     pred_values = prediction.to_numpy(dtype=float)
     error = pred_values - truth_values
@@ -55,13 +84,27 @@ def _curve_metrics(truth: pd.Series, prediction: pd.Series) -> dict[str, float]:
         "peak_infected_error": peak_error,
         "time_to_peak_error": time_to_peak_error,
         "final_infected_error": final_size_error,
+        **_information_criteria(truth_values, pred_values, parameter_count),
     }
 
 
-def evaluate_curve_fit(truth_counts: pd.DataFrame, predicted_counts: pd.DataFrame) -> dict[str, float]:
-    metrics = _curve_metrics(truth_counts["infected"], predicted_counts["infected"])
+def evaluate_curve_fit(
+    truth_counts: pd.DataFrame,
+    predicted_counts: pd.DataFrame,
+    *,
+    parameter_count: int,
+) -> dict[str, float]:
+    metrics = _curve_metrics(
+        truth_counts["infected"],
+        predicted_counts["infected"],
+        parameter_count,
+    )
     if "recovered" in truth_counts and "recovered" in predicted_counts:
-        recovered_metrics = _curve_metrics(truth_counts["recovered"], predicted_counts["recovered"])
+        recovered_metrics = _curve_metrics(
+            truth_counts["recovered"],
+            predicted_counts["recovered"],
+            parameter_count,
+        )
         metrics["mse_recovered"] = recovered_metrics["mse_infected"]
         metrics["mae_recovered"] = recovered_metrics["mae_infected"]
         metrics["r2_recovered"] = recovered_metrics["r2_infected"]
@@ -79,6 +122,7 @@ def _fit_model(
     seed: int,
     runner: ModelRunner,
     grid: dict[str, list[float]],
+    selection_metric: str,
 ) -> tuple[FitResult, pd.DataFrame]:
     rows: list[dict[str, float | str]] = []
     best_result: FitResult | None = None
@@ -96,13 +140,17 @@ def _fit_model(
             **params,
         )
         mean_counts = run["mean_counts"]
-        fit_metrics = evaluate_curve_fit(truth_counts, mean_counts)
+        fit_metrics = evaluate_curve_fit(
+            truth_counts,
+            mean_counts,
+            parameter_count=len(params),
+        )
         row: dict[str, float | str] = {"model": model_name, **params, **fit_metrics}
         rows.append(row)
 
-        loss = fit_metrics["mse_infected"]
-        if best_loss is None or loss < best_loss:
-            best_loss = loss
+        score = float(fit_metrics[selection_metric])
+        if best_loss is None or score < best_loss:
+            best_loss = score
             best_result = FitResult(
                 model_name=model_name,
                 params=params,
@@ -124,19 +172,36 @@ def run_model_comparison(
     truth_runs: int = 140,
     fit_runs: int = 80,
     final_runs: int = 140,
+    evaluation_repeats: int = 6,
     seed: int = 42,
+    truth_model: str = "sir",
+    selection_metric: str = "bic_infected",
 ) -> dict[str, object]:
-    truth_params = {"beta": 0.022, "sigma": 0.28, "gamma": 0.18}
-    truth_run = monte_carlo_seir(
-        graph=graph,
-        beta=truth_params["beta"],
-        sigma=truth_params["sigma"],
-        gamma=truth_params["gamma"],
-        steps=steps,
-        runs=truth_runs,
-        initial_infected=initial_infected,
-        seed=seed,
-    )
+    if truth_model == "sir":
+        truth_params = {"beta": 0.012, "mu": 0.14}
+        truth_run = monte_carlo_sir(
+            graph=graph,
+            beta=truth_params["beta"],
+            mu=truth_params["mu"],
+            steps=steps,
+            runs=truth_runs,
+            initial_infected=initial_infected,
+            seed=seed,
+        )
+    elif truth_model == "seir":
+        truth_params = {"beta": 0.022, "sigma": 0.28, "gamma": 0.18}
+        truth_run = monte_carlo_seir(
+            graph=graph,
+            beta=truth_params["beta"],
+            sigma=truth_params["sigma"],
+            gamma=truth_params["gamma"],
+            steps=steps,
+            runs=truth_runs,
+            initial_infected=initial_infected,
+            seed=seed,
+        )
+    else:
+        raise ValueError(f"Unsupported truth_model: {truth_model}")
     truth_counts = truth_run["mean_counts"].copy()
 
     sir_grid = {
@@ -144,8 +209,8 @@ def run_model_comparison(
         "mu": [0.10, 0.14, 0.18, 0.22],
     }
     seir_grid = {
-        "beta": [0.016, 0.020, 0.022, 0.024, 0.028],
-        "sigma": [0.18, 0.24, 0.28, 0.34],
+        "beta": [0.016, 0.018, 0.020, 0.022, 0.024, 0.028],
+        "sigma": [0.28, 0.34, 0.50, 0.75, 1.00],
         "gamma": [0.14, 0.18, 0.22],
     }
 
@@ -159,6 +224,7 @@ def run_model_comparison(
         seed=seed + 1000,
         runner=monte_carlo_sir,
         grid=sir_grid,
+        selection_metric=selection_metric,
     )
     best_seir_fit, seir_search = _fit_model(
         model_name="SEIR",
@@ -170,36 +236,62 @@ def run_model_comparison(
         seed=seed + 2000,
         runner=monte_carlo_seir,
         grid=seir_grid,
+        selection_metric=selection_metric,
     )
 
-    final_sir = monte_carlo_sir(
-        graph=graph,
-        steps=steps,
-        runs=final_runs,
-        initial_infected=initial_infected,
-        seed=seed + 3000,
-        **best_sir_fit.params,
-    )
-    final_seir = monte_carlo_seir(
-        graph=graph,
-        steps=steps,
-        runs=final_runs,
-        initial_infected=initial_infected,
-        seed=seed + 4000,
-        **best_seir_fit.params,
-    )
+    def summarize_trials(model_name: str, runner: ModelRunner, params: dict[str, float], base_seed: int) -> tuple[dict[str, float], pd.DataFrame]:
+        metric_rows: list[dict[str, float]] = []
+        trial_counts: list[pd.DataFrame] = []
+        for repeat_idx in range(evaluation_repeats):
+            result = runner(
+                graph=graph,
+                steps=steps,
+                runs=final_runs,
+                initial_infected=initial_infected,
+                seed=base_seed + repeat_idx * 97,
+                **params,
+            )
+            counts = result["mean_counts"]
+            trial_counts.append(counts)
+            metric_rows.append(
+                evaluate_curve_fit(
+                    truth_counts,
+                    counts,
+                    parameter_count=len(params),
+                )
+            )
 
-    sir_metrics = evaluate_curve_fit(truth_counts, final_sir["mean_counts"])
-    seir_metrics = evaluate_curve_fit(truth_counts, final_seir["mean_counts"])
+        metrics_frame = pd.DataFrame(metric_rows)
+        summary = metrics_frame.mean(numeric_only=True).to_dict()
+        for column in metrics_frame.columns:
+            summary[f"{column}_std"] = float(metrics_frame[column].std(ddof=1))
+        summary["evaluation_repeats"] = float(evaluation_repeats)
+        summary["model"] = model_name
+        return summary, trial_counts[0]
+
+    sir_metrics, sir_counts = summarize_trials(
+        "SIR",
+        monte_carlo_sir,
+        best_sir_fit.params,
+        seed + 3000,
+    )
+    seir_metrics, seir_counts = summarize_trials(
+        "SEIR",
+        monte_carlo_seir,
+        best_seir_fit.params,
+        seed + 4000,
+    )
     metrics_df = pd.DataFrame(
         [
             {
-                "model": "SIR",
+                "truth_model": truth_model.upper(),
+                "selection_metric": selection_metric,
                 **best_sir_fit.params,
                 **sir_metrics,
             },
             {
-                "model": "SEIR",
+                "truth_model": truth_model.upper(),
+                "selection_metric": selection_metric,
                 **best_seir_fit.params,
                 **seir_metrics,
             },
@@ -208,9 +300,11 @@ def run_model_comparison(
 
     return {
         "truth_params": truth_params,
+        "truth_model": truth_model.upper(),
+        "selection_metric": selection_metric,
         "truth_counts": truth_counts,
-        "sir_counts": final_sir["mean_counts"],
-        "seir_counts": final_seir["mean_counts"],
+        "sir_counts": sir_counts,
+        "seir_counts": seir_counts,
         "metrics": metrics_df,
         "grid_search": pd.concat([sir_search, seir_search], ignore_index=True),
     }
